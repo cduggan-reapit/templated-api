@@ -1,0 +1,79 @@
+name: Initialize Dotnet Lambda (SQS)
+on: 
+  workflow_dispatch:
+    inputs:
+      # Inputs for project scaffolding
+      solution-name:
+        description: 'The name of the solution (e.g. Reapit.Lambdas.Example)'
+        required: true
+        default: Reapit.Peepit.Keepit
+
+      # Inputs for NuGet setup
+      nuget-pat:
+        description: 'The nuget feed PAT'
+        required: true
+
+      # Inputs for Git commit
+      user-name: 
+        description: 'Your github username'
+        default: cduggan-reapit
+        required: true
+      user-email: 
+        description: 'Your email address'
+        default: cduggan@reapit.com
+        required: true
+
+jobs:
+  initialize-dotnet-api:
+    permissions: 
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⚒️ log inputs
+        run: |
+          echo "Name: $NAME"
+        env:
+          NAME: ${{ inputs.solution-name }}
+  
+      - name: checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: install reapit dotnet templates
+        run: |
+          dotnet nuget add source $NUGET_FEED --name github --store-password-in-clear-text --username $NUGET_USERNAME --password $NUGET_TOKEN
+          dotnet new install Reapit.Platform.Templates --force --nuget-source $NUGET_FEED
+        env:
+          NUGET_FEED: https://nuget.pkg.github.com/reapit/index.json
+          NUGET_USERNAME: dotnet-initializer
+          NUGET_TOKEN: ${{ inputs.nuget-pat }}
+
+      - name: create project
+        run: |
+          dotnet new reapit-lambda-sqs -n $NAME -o src 
+          ls -la
+        env:
+          NAME: ${{ inputs.solution-name }}
+          
+      - name: remove initialization workflows
+        working-directory: .github/workflows
+        run: rm -f *-init.yaml
+  
+      - name: commit changes
+        run: |
+          git config user.name "$NAME"
+          git config user.email "$EMAIL"
+          git add .
+          git commit -m "chore: initialize dotnet api repository"
+          git push
+        env:
+          NAME: ${{ inputs.user-name }}
+          EMAIL: ${{ inputs.user-email }}
+        
+
